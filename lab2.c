@@ -33,6 +33,8 @@
 #include "os.h"
 #include "PLL.h"
 #include "../inc/tm4c123gh6pm.h"
+#include "SysTick.h"
+
 //#include <stdint.h>
 
 unsigned long NumCreated;
@@ -351,7 +353,8 @@ unsigned long Count2;   // number of times thread2 loops
 unsigned long Count3;   // number of times thread3 loops
 unsigned long Count4;   // number of times thread4 loops
 unsigned long Count5;   // number of times thread5 loops
-void Thread1(void){
+//cooperative
+void Thread1_coop(void){
   Count1 = 0;          
   for(;;){
     PB2 ^= 0x04;       // heartbeat
@@ -359,7 +362,7 @@ void Thread1(void){
     OS_Suspend();      // cooperative multitasking
   }
 }
-void Thread2(void){
+void Thread2_coop(void){
   Count2 = 0;          
   for(;;){
     PB3 ^= 0x08;       // heartbeat
@@ -367,7 +370,7 @@ void Thread2(void){
     OS_Suspend();      // cooperative multitasking
   }
 }
-void Thread3(void){
+void Thread3_coop(void){
   Count3 = 0;    
   for(;;){
     PB4 ^= 0x10;       // heartbeat
@@ -376,14 +379,53 @@ void Thread3(void){
   }
 }
 
-int main(void){  // Testmain1
+//preemptive
+
+void Thread1_pre(void){
+  Count1 = 0;          
+  for(;;){
+    PB2 ^= 0x04;       // heartbeat
+    Count1++;
+  }
+}
+void Thread2_pre(void){
+  Count2 = 0;          
+  for(;;){
+    PB3 ^= 0x08;       // heartbeat
+    Count2+=2;
+  }
+}
+void Thread3_pre(void){
+  Count3 = 0;    
+  for(;;){
+    PB4 ^= 0x10;       // heartbeat
+    Count3+=3;
+  }
+}
+
+int main(void){  // Testmain1 coop
   PLL_Init(Bus80MHz);                 // bus clock at 80 MHz
   OS_Init();          // initialize, disable interrupts
   PortB_Init();       // profile user threads
   NumCreated = 0 ;
-  NumCreated += OS_AddThread(&Thread1,2,1); 
-  NumCreated += OS_AddThread(&Thread2,2,2); 
-  NumCreated += OS_AddThread(&Thread3,2,3); 
+  NumCreated += OS_AddThread(&Thread1_coop,2,1); 
+  NumCreated += OS_AddThread(&Thread2_coop,2,2); 
+  NumCreated += OS_AddThread(&Thread3_coop,2,3); 
+  // Count1 Count2 Count3 should be equal or off by one at all times
+  OS_Launch(TIME_2MS); // doesn't return, interrupts enabled in here
+  return 0;            // this never executes
+}
+
+int main12(void){  // Testmain2 preemptive
+  PLL_Init(Bus80MHz);                 // bus clock at 80 MHz
+  OS_Init();          // initialize, disable interrupts
+  PortB_Init();       // profile user threads
+  NumCreated = 0 ;
+  NumCreated += OS_AddThread(&Thread1_pre,2,1); 
+  NumCreated += OS_AddThread(&Thread2_pre,2,2); 
+  NumCreated += OS_AddThread(&Thread3_pre,2,3); 
+  
+  SysTick_Init(800);
   // Count1 Count2 Count3 should be equal or off by one at all times
   OS_Launch(TIME_2MS); // doesn't return, interrupts enabled in here
   return 0;            // this never executes
