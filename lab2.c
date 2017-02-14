@@ -359,6 +359,7 @@ void Thread1_coop(void){
   for(;;){
     PB2 ^= 0x04;       // heartbeat
     Count1++;
+    PB2 ^= 0x04;       // heartbeat
     OS_Suspend();      // cooperative multitasking
   }
 }
@@ -367,6 +368,7 @@ void Thread2_coop(void){
   for(;;){
     PB3 ^= 0x08;       // heartbeat
     Count2+=2;
+    PB3 ^= 0x08;       // heartbeat
     OS_Suspend();      // cooperative multitasking
   }
 }
@@ -375,6 +377,7 @@ void Thread3_coop(void){
   for(;;){
     PB4 ^= 0x10;       // heartbeat
     Count3+=3;
+    PB4 ^= 0x10;       // heartbeat
     OS_Suspend();      // cooperative multitasking
   }
 }
@@ -403,7 +406,7 @@ void Thread3_pre(void){
   }
 }
 
-int main(void){  // Testmain1 coop
+int main46(void){  // Testmain1 coop
   PLL_Init(Bus80MHz);                 // bus clock at 80 MHz
   OS_Init();          // initialize, disable interrupts
   PortB_Init();       // profile user threads
@@ -416,7 +419,7 @@ int main(void){  // Testmain1 coop
   return 0;            // this never executes
 }
 
-int main12(void){  // Testmain2 preemptive
+int main67(void){  // Testmain2 preemptive
   PLL_Init(Bus80MHz);                 // bus clock at 80 MHz
   OS_Init();          // initialize, disable interrupts
   PortB_Init();       // profile user threads
@@ -767,7 +770,7 @@ int Testmain6(void){      // Testmain6  Lab 3
   return 0;             // this never executes
 }
 
-
+*/
 //******************* Lab 3 Measurement of context switch time**********
 // Run this to measure the time it takes to perform a task switch
 // UART0 not needed 
@@ -783,12 +786,13 @@ void Thread8(void){       // only thread running
     PB2 ^= 0x04;      // debugging profile  
   }
 }
-int Testmain7(void){       // Testmain7
+int main(void){       // Testmain7
+  PLL_Init(Bus80MHz);
   PortB_Init();
   OS_Init();           // initialize, disable interrupts
+  SysTick_Init(8000);
   NumCreated = 0 ;
   NumCreated += OS_AddThread(&Thread8,128,2); 
   OS_Launch(TIME_1MS/10); // 100us, doesn't return, interrupts enabled in here
   return 0;             // this never executes
 }
-*/

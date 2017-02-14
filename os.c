@@ -80,5 +80,5 @@ void OS_Init(void){
     tcbs[i-1].Regs[13] = 0x13370000;
     tcbs[i-1].stackPt = &tcbs[i-1].Regs[0];
   }
-  
+  NVIC_SYS_PRI3_R |= 7<<21;
 }
