@@ -58,8 +58,9 @@ PendSV_Handler
   LDR R1, [R0]    ; Load current TCB address
   STR SP, [R1]    ; Store SP in TCB
   LDR R1, =NextPt ;load R1 with value of NextPt
+  LDR R1, [R1]    ; Load new SP
   STR R1, [R0]    ; Store next TCB in RunPt
-  LDR SP, [R1]    ; Load new SP
+  LDR SP, [R1]
   POP {R4-R11}    ; Load new registers
   CPSIE I         ; Re-enable interrupts
   BX LR           ; Resume new task
