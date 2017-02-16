@@ -1,20 +1,85 @@
 #include "os.h"
 #include "FIFO.h"
+#include "SysTick.h"
 #include "../inc/tm4c123gh6pm.h"
 
 
-#define FIFOSIZE   16         // size of the FIFOs (must be power of 2)
+#define FIFOSIZE   128         // size of the FIFOs (must be power of 2)
 #define FIFOSUCCESS 1         // return value on success
 #define FIFOFAIL    0         // return value on failure
                               // create index implementation FIFO (see FIFO.h)
-//AddIndexFifo(Rx_OS, FIFOSIZE, char, FIFOSUCCESS, FIFOFAIL)
-//AddIndexFifo(Tx_OS, FIFOSIZE, char, FIFOSUCCESS, FIFOFAIL)
+#define MAILBOXSIZE 30
 
 
+static uint8_t OS_FIFO_Index;
 
+AddIndexFifo(OS, FIFOSIZE, unsigned long, FIFOSUCCESS, FIFOFAIL)
+
+static uint8_t OS_Mailbox_Index;
+
+static Mail mailBox[30];
+
+
+void OS_Fifo_Init(){
+  OSFifo_Init();
+  OS_FIFO_Index = 0;
+}
+
+int OS_Fifo_Put(unsigned long data){
+  if(OS_FIFO_Index < (FIFOSIZE -1)){
+    OSFifo_Put(data);
+    OS_FIFO_Index++;
+    return FIFOSUCCESS;
+  }
+  return FIFOFAIL;
+}
+
+unsigned long OS_Fifo_Get(void){
+  unsigned long ret;
+  if(OS_FIFO_Index <= 0){
+    return FIFOFAIL;
+  }
+  OSFifo_Get(&ret);
+  OS_FIFO_Index--;
+  return ret;
+}
+
+unsigned long OS_Fifo_Size(void){
+  return OS_FIFO_Index;
+}
+
+void OS_MailBox_Init(){
+  OS_Mailbox_Index = 0;
+}
+
+void OS_MailBox_Send(int device, int line, char* message){
+  int i;
+  if(OS_Mailbox_Index < (MAILBOXSIZE-1)){
+    mailBox[OS_Mailbox_Index].device = device;
+    mailBox[OS_Mailbox_Index].line = line;
+    for(i = 0; i < 20; i++){
+      mailBox[OS_Mailbox_Index].message[i] = message[i];
+    }
+    OS_Mailbox_Index++;
+  }
+  else{
+    
+  }
+}
+
+Mail* OS_MailBox_Recv(void){
+  if(OS_Mailbox_Index > 0){
+    return &mailBox[OS_Mailbox_Index--];
+    
+  }
+  else{
+    return 0;
+  }
+}
 
 TCBType* RunPt;
-//TCBType* NextPt;
+TCBType* NextPt;
+
 const uint8_t TCB_COUNT = 3;
 TCBType tcbs[TCB_COUNT];
 
@@ -61,9 +126,30 @@ void OS_InitSemaphore(Sema4Type *semaPt, long value){
   semaPt->Value = value;
 }
 
+void OS_Scheduler(void){
+  NextPt = 0;
+  struct TCB* next = RunPt->next;
+  while(NextPt == 0){
+    if(next->sleep == 0){
+      NextPt = next;
+      break;
+    }
+    else{
+      if(SYSTICK_getCount(next->id) >= next->count)
+      {
+        next->count = 0;
+        NextPt = next;
+      }
+      else{
+        next = next->next;
+      }
+    }
+  }
+}
 
 void OS_Suspend(void){
   //call scheduler
+  OS_Scheduler();
   NVIC_INT_CTRL_R = 0x10000000; // Trigger PendSV
 }
 
@@ -110,6 +196,12 @@ int OS_AddThread(void(*task)(void),  uint8_t priority, uint8_t id){
 	}
 	//no empty tcb found
 	return -1;
+}
+
+void OS_Sleep(unsigned long sleepTime){
+  RunPt->sleep = sleepTime;
+  SYSTICK_setCount(RunPt->id);
+  OS_Suspend();
 }
 
 void OS_Init(void){

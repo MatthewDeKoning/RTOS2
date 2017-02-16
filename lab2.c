@@ -34,12 +34,12 @@
 #include "PLL.h"
 #include "../inc/tm4c123gh6pm.h"
 #include "SysTick.h"
-
+#include "string.h"
 #include <stdint.h>
 
 unsigned long NumCreated;
 #include "ST7735.h"
-#include "ADCT2ATrigger.h"
+#include "ADC_Collect.h"
 #include "UART.h"
 #include "interpreter.h"
 
@@ -49,7 +49,7 @@ void cr4_fft_64_stm32(void *pssOUT, void *pssIN, unsigned short Nbin);
 short PID_stm32(short Error, short *Coeff);
 short IntTerm;     // accumulated error, RPM-sec
 short PrevError;   // previous error, RPM
-/*
+
 unsigned long NumCreated;   // number of foreground threads created
 unsigned long PIDWork;      // current number of PID calculations finished
 unsigned long FilterWork;   // number of digital filter calculations finished
@@ -67,7 +67,7 @@ long MaxJitter;             // largest time jitter between interrupts in usec
 #define JITTERSIZE 64
 unsigned long const JitterSize=JITTERSIZE;
 unsigned long JitterHistogram[JITTERSIZE]={0,};
-*/
+
 #define PB2  (*((volatile unsigned long *)0x40005010))
 #define PB3  (*((volatile unsigned long *)0x40005020))
 #define PB4  (*((volatile unsigned long *)0x40005040))
@@ -140,7 +140,7 @@ long jitter;                    // time between measured and expected, in us
   }
 }
 //--------------end of Task 1-----------------------------
-
+*/
 //------------------Task 2--------------------------------
 // background thread executes with SW1 button
 // one foreground task created with button push
@@ -149,16 +149,17 @@ long jitter;                    // time between measured and expected, in us
 void ButtonWork(void){
 unsigned long myId = OS_Id(); 
   PB3 ^= 0x08;
-  ST7735_Message(1,0,"NumCreated =",NumCreated); 
+  ST7735_ds_Message(1,0,"NumCreated =",NumCreated); 
   PB3 ^= 0x08;
   OS_Sleep(50);     // set this to sleep for 50msec
-  ST7735_Message(1,1,"PIDWork     =",PIDWork);
-  ST7735_Message(1,2,"DataLost    =",DataLost);
-  ST7735_Message(1,3,"Jitter 0.1us=",MaxJitter);
+  ST7735_ds_Message(1,1,"PIDWork     =",PIDWork);
+  ST7735_ds_Message(1,2,"DataLost    =",DataLost);
+  ST7735_ds_Message(1,3,"Jitter 0.1us=",MaxJitter);
   PB3 ^= 0x08;
   OS_Kill();  // done, OS does not return from a Kill
 } 
 
+/*
 //************SW1Push*************
 // Called when SW1 Button pushed
 // Adds another foreground task
@@ -170,7 +171,7 @@ void SW1Push(void){
     }
     OS_ClearMsTime();  // at least 20ms between touches
   }
-}
+}/*
 //************SW2Push*************
 // Called when SW2 Button pushed, Lab 3 only
 // Adds another foreground task
@@ -184,7 +185,7 @@ void SW2Push(void){
   }
 }
 //--------------end of Task 2-----------------------------
-
+*/
 //------------------Task 3--------------------------------
 // hardware timer-triggered ADC sampling at 400Hz
 // Producer runs as part of ADC ISR
@@ -217,10 +218,16 @@ void Display(void);
 // calculates FFT, sends DC component to Display
 // inputs:  none
 // outputs: none
+const char static * msgStart = "v(mV) = ";
 void Consumer(void){ 
 unsigned long data,DCcomponent;   // 12-bit raw ADC sample, 0 to 4095
 unsigned long t;                  // time in 2.5 ms
-unsigned long myId = OS_Id(); 
+unsigned long myId = OS_Id();
+char message[15]; 
+uint8_t i;
+  for(i = 0; i < 8; i++){
+    message[i] = msgStart[i];
+  }
   ADC_Collect(5, FS, &Producer); // start ADC sampling, channel 5, PD2, 400 Hz
   NumCreated += OS_AddThread(&Display,128,0); 
   while(NumSamples < RUNLENGTH) { 
@@ -232,7 +239,9 @@ unsigned long myId = OS_Id();
     PB4 = 0x00;
     cr4_fft_64_stm32(y,x,64);  // complex FFT of last 64 ADC values
     DCcomponent = y[0]&0xFFFF; // Real part at frequency 0, imaginary part should be zero
-    OS_MailBox_Send(DCcomponent); // called every 2.5ms*64 = 160ms
+    DCcomponent = 3000*DCcomponent/4095;
+    itoa(DCcomponent, message, 10, 8);
+    OS_MailBox_Send(2, 0, message); // called every 2.5ms*64 = 160ms
   }
   OS_Kill();  // done
 }
@@ -241,14 +250,13 @@ unsigned long myId = OS_Id();
 // displays calculated results on the LCD
 // inputs:  none                            
 // outputs: none
-void Display(void){ 
-unsigned long data,voltage;
-  ST7735_Message(0,1,"Run length = ",(RUNLENGTH)/FS);   // top half used for Display
+void Display(void){
+  Mail* data; uint8_t device, line;
+  ST7735_ds_Message(3,3,"Run length = ",(RUNLENGTH)/FS);   // top half used for Display
   while(NumSamples < RUNLENGTH) { 
     data = OS_MailBox_Recv();
-    voltage = 3000*data/4095;               // calibrate your device so voltage is in mV
-    PB5 = 0x20;
-    ST7735_Message(0,2,"v(mV) =",voltage);  
+    ST7735_ds_SetCursor(data->device, 0, data->line);
+    ST7735_ds_OutString(data->device, data->message);
     PB5 = 0x20;
   } 
   OS_Kill();  // done
@@ -286,7 +294,7 @@ unsigned long myId = OS_Id();
   for(;;){ }          // done
 }
 //--------------end of Task 4-----------------------------
-
+/*
 //------------------Task 5--------------------------------
 // UART background ISR performs serial input/output
 // Two software fifos are used to pass I/O data to foreground
@@ -430,12 +438,13 @@ int main(void){  // Testmain1 coop
   PLL_Init(Bus50MHz);       // set system clock to 50 MHz
   UART_Init();              // initialize UART
   INTERPRETER_initArray();
+  PortB_Init();
   ST7735_ds_InitR(INITR_REDTAB, 4, 4, 4, 4);
   OS_Init();
-  //PortB_Init();
+  //
   //INTERPRETER_Run();
   NumCreated = 0 ;
-  //NumCreated += OS_AddThread(&Thread1_pre,2,1); 
+  NumCreated += OS_AddThread(&Thread1_pre,2,1); 
   NumCreated += OS_AddThread(&INTERPRETER_Run,2,1);   
   //NumCreated += OS_AddThread(&Thread2_coop,2,2); 
   //NumCreated += OS_AddThread(&Thread3_coop,2,3); 

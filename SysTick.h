@@ -43,9 +43,14 @@ void SysTick_Wait(uint32_t delay);
 
 // Time delay using busy wait.
 // This assumes 50 MHz system clock.
-void SysTick_Wait10ms(uint32_t delay);
+void SysTick_Wait10ms(uint32_t );
 
-uint32_t getTime(void);
+void SYSTICK_setCount(uint8_t id);
+
+uint32_t SYSTICK_getCount(uint8_t );
+
+uint32_t SYSTICK_getTime(void);
+
 
 void SysTick_SetTime(uint32_t);
 

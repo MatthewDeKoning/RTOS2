@@ -234,7 +234,6 @@ uint8_t INTERPRETER_handleCommand(uint8_t index){
         return 2;
       }
       return 0xff;
-      break;
     case 4:
       if(strArray[0][index] == 'd' && strArray[0][index+1] == 'a' && strArray[0][index+2] == 't' && strArray[0][index+3] == 'e'){
         return 10;
@@ -243,7 +242,6 @@ uint8_t INTERPRETER_handleCommand(uint8_t index){
         return 7;
       }
       return 0xff;
-      break;
     case 5:
       if(strArray[0][index] == 'p' && strArray[0][index+1] == 'r' && strArray[0][index+2] == 'i' && strArray[0][index+3] == 'n' && strArray[0][index+4] == 't'){
         return 4;
@@ -252,7 +250,6 @@ uint8_t INTERPRETER_handleCommand(uint8_t index){
         return 6;
       }
       return 0xff;
-      break;
     case 6:
       if(strArray[0][index] == 's' && strArray[0][index+1] == 'c' && strArray[0][index+2] == 'r' && strArray[0][index+3] == 'e' && strArray[0][index+4] == 'e'&& strArray[0][index+5] == 'n'){
         return 5;
@@ -261,7 +258,6 @@ uint8_t INTERPRETER_handleCommand(uint8_t index){
         return 6;
       }
       return 0xff;
-      break;
     case 7:
       if(strArray[0][index] == 's' && strArray[0][index+1] == 'e' && strArray[0][index+2] == 't' && strArray[0][index+3] == 'd' && strArray[0][index+4] == 'a'&& strArray[0][index+5] == 't' && strArray[0][index+6] == 'e'){
         return 8;
@@ -273,7 +269,6 @@ uint8_t INTERPRETER_handleCommand(uint8_t index){
         return 3;
       }
       return 0xff;
-      break;
     case 8:
       if(strArray[0][index] == 's' && strArray[0][index+1] == 'h' && strArray[0][index+2] == 'o' && strArray[0][index+3] == 'w' && strArray[0][index+4] == 't' && strArray[0][index+5] == 'i'&& strArray[0][index+6] == 'm' && strArray[0][index+7] == 'e'){
         return 11;
@@ -288,11 +283,9 @@ uint8_t INTERPRETER_handleCommand(uint8_t index){
         return 14;
       }
       return 0xff;
-      break;
       
     default:
       return 0xff;
-      break;
   }
 }
 uint8_t   INTERPRETER_handleParam1(int8_t* interpreter_device, int8_t* interpreter_line){

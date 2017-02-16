@@ -11,8 +11,10 @@
         PRESERVE8
 
         EXTERN  RunPt            ; currently running thread
+        EXTERN  NextPt           ; thread to run next
         EXPORT  OS_Launch
         EXPORT  PendSV_Handler
+       
 
 
 NVIC_INT_CTRL   EQU     0xE000ED04                              ; Interrupt control state register.
@@ -55,8 +57,7 @@ PendSV_Handler
   LDR R0, =RunPt  
   LDR R1, [R0]    ; Load current TCB address
   STR SP, [R1]    ; Store SP in TCB
-  LDR R1, [R1, #4] ;load R1 with value of RunPt->Next//does not work right!
-  LDR R2, [R1]    ; Load next TCB address
+  LDR R1, =NextPt ;load R1 with value of NextPt
   STR R1, [R0]    ; Store next TCB in RunPt
   LDR SP, [R1]    ; Load new SP
   POP {R4-R11}    ; Load new registers
@@ -65,3 +66,5 @@ PendSV_Handler
   
   ALIGN
   END
+      
+      

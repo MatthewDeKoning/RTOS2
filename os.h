@@ -21,6 +21,18 @@
 /*                      OS OBJECTS                      */
 /* ---------------------------------------------------- */
 
+enum uint8_t{
+  screen0, screen1, screen2, screen3
+};
+
+struct MailboxMsg{
+  uint8_t device;
+  uint8_t line;
+  char message[20];
+};
+
+typedef struct MailboxMsg Mail;
+
 typedef unsigned char OS_objectType;
 enum OS_objectType{
   tcb,
@@ -39,7 +51,8 @@ struct TCB{
 	uint32_t PSR;
 	//state variables
 	uint8_t id;
-	uint32_t sleep;
+	unsigned long sleep;
+  uint8_t count;
 	uint8_t priority;
 	uint8_t blocked;
 };
@@ -171,7 +184,7 @@ int OS_AddSW1Task(void(*task)(void), unsigned long priority);
 // In lab 3, there will be up to four background threads, and this priority field 
 //           determines the relative priority of these four threads
 int OS_AddSW2Task(void(*task)(void), unsigned long priority);
-
+*/
 // ******** OS_Sleep ************
 // place this thread into a dormant state
 // input:  number of msec to sleep
@@ -179,7 +192,7 @@ int OS_AddSW2Task(void(*task)(void), unsigned long priority);
 // You are free to select the time resolution for this function
 // OS_Sleep(0) implements cooperative multitasking
 void OS_Sleep(unsigned long sleepTime); 
-*/
+
 // ******** OS_Kill ************
 // kill the currently running thread, release its TCB and stack
 // input:  none
@@ -194,7 +207,7 @@ void OS_Kill(void);
 // input:  none
 // output: none
 void OS_Suspend(void);
-/*
+
 // ******** OS_Fifo_Init ************
 // Initialize the Fifo to be empty
 // Inputs: size
@@ -204,7 +217,7 @@ void OS_Suspend(void);
 // In Lab 3, you can put whatever restrictions you want on size
 //    e.g., 4 to 64 elements
 //    e.g., must be a power of 2,4,8,16,32,64,128
-void OS_Fifo_Init(unsigned long size);
+void OS_Fifo_Init();
 
 // ******** OS_Fifo_Put ************
 // Enter one data sample into the Fifo
@@ -230,7 +243,7 @@ unsigned long OS_Fifo_Get(void);
 //          greater than zero if a call to OS_Fifo_Get will return right away
 //          zero or less than zero if the Fifo is empty 
 //          zero or less than zero if a call to OS_Fifo_Get will spin or block
-long OS_Fifo_Size(void);
+unsigned long OS_Fifo_Size(void);
 
 // ******** OS_MailBox_Init ************
 // Initialize communication channel
@@ -244,7 +257,7 @@ void OS_MailBox_Init(void);
 // Outputs: none
 // This function will be called from a foreground thread
 // It will spin/block if the MailBox contains data not yet received 
-void OS_MailBox_Send(unsigned long data);
+void OS_MailBox_Send(int device, int line, char* message);
 
 // ******** OS_MailBox_Recv ************
 // remove mail from the MailBox
@@ -252,8 +265,8 @@ void OS_MailBox_Send(unsigned long data);
 // Outputs: data received
 // This function will be called from a foreground thread
 // It will spin/block if the MailBox is empty 
-unsigned long OS_MailBox_Recv(void);
-
+Mail* OS_MailBox_Recv(void);
+/*
 // ******** OS_Time ************
 // return the system time 
 // Inputs:  none

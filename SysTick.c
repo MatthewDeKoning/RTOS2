@@ -40,13 +40,13 @@
 #include "SysTick.h"
 
 #define PB5  (*((volatile unsigned long *)0x40005080)) 
-#define NVIC_ST_CTRL_COUNT      0x00010000  // Count flag
+#define NVIC_ST_CTRL_SYSTICK_count      0x00010000  // SYSTICK_count flag
 #define NVIC_ST_CTRL_CLK_SRC    0x00000004  // Clock Source
 #define NVIC_ST_CTRL_INTEN      0x00000002  // Interrupt enable
-#define NVIC_ST_CTRL_ENABLE     0x00000001  // Counter mode
-#define NVIC_ST_RELOAD_M        0x00FFFFFF  // Counter load value
+#define NVIC_ST_CTRL_ENABLE     0x00000001  // SYSTICK_counter mode
+#define NVIC_ST_RELOAD_M        0x00FFFFFF  // SYSTICK_counter load value
 
-uint8_t count;
+static uint32_t SYSTICK_count[10];
 
 // Initialize SysTick with busy wait running at bus clock.
 void SysTick_Init(uint32_t time){
@@ -56,7 +56,7 @@ void SysTick_Init(uint32_t time){
   //set priority of 6 for systick                                   
   NVIC_SYS_PRI3_R |=6<<29;  
   NVIC_ST_CTRL_R = 0x7;                 // enable SysTick with core clock and interrupts
-  
+
 }
 
 //set the SysTick clock
@@ -83,12 +83,21 @@ void SysTick_Wait10ms(uint32_t delay){
   }
 }
 
-uint32_t getTime(void){
+uint32_t SYSTICK_getTime(void){
   return NVIC_ST_CURRENT_R;
 }
 
+void SYSTICK_setCount(uint8_t id){
+  SYSTICK_count[id] = 0;
+}
+
+uint32_t SYSTICK_getCount(uint8_t id){
+  return SYSTICK_count[id];
+}
 void SysTick_Handler(void){
-  //PB5 ^= 0x20;
+  int i = 0;
+  PB5 ^= 0x20;
+  for(i = 0; i < 10; i++){SYSTICK_count[i]++;}
   
   OS_Suspend(); // Trigger PendSV
 }
