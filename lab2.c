@@ -35,19 +35,21 @@
 #include "../inc/tm4c123gh6pm.h"
 #include "SysTick.h"
 
-//#include <stdint.h>
+#include <stdint.h>
 
 unsigned long NumCreated;
-/*#include "ST7735.h"
-#include "ADC.h"
-#include "UART2.h"
-#include <string.h> 
+#include "ST7735.h"
+#include "ADCT2ATrigger.h"
+#include "UART.h"
+#include "interpreter.h"
 
 //*********Prototype for FFT in cr4_fft_64_stm32.s, STMicroelectronics
 void cr4_fft_64_stm32(void *pssOUT, void *pssIN, unsigned short Nbin);
 //*********Prototype for PID in PID_stm32.s, STMicroelectronics
 short PID_stm32(short Error, short *Coeff);
-
+short IntTerm;     // accumulated error, RPM-sec
+short PrevError;   // previous error, RPM
+/*
 unsigned long NumCreated;   // number of foreground threads created
 unsigned long PIDWork;      // current number of PID calculations finished
 unsigned long FilterWork;   // number of digital filter calculations finished
@@ -359,7 +361,6 @@ void Thread1_coop(void){
   for(;;){
     PB2 ^= 0x04;       // heartbeat
     Count1++;
-    PB2 ^= 0x04;       // heartbeat
     OS_Suspend();      // cooperative multitasking
   }
 }
@@ -368,7 +369,6 @@ void Thread2_coop(void){
   for(;;){
     PB3 ^= 0x08;       // heartbeat
     Count2+=2;
-    PB3 ^= 0x08;       // heartbeat
     OS_Suspend();      // cooperative multitasking
   }
 }
@@ -377,7 +377,6 @@ void Thread3_coop(void){
   for(;;){
     PB4 ^= 0x10;       // heartbeat
     Count3+=3;
-    PB4 ^= 0x10;       // heartbeat
     OS_Suspend();      // cooperative multitasking
   }
 }
@@ -406,20 +405,47 @@ void Thread3_pre(void){
   }
 }
 
-int main46(void){  // Testmain1 coop
+int main22(void){
   PLL_Init(Bus80MHz);                 // bus clock at 80 MHz
   OS_Init();          // initialize, disable interrupts
+  ST7735_ds_InitR(INITR_REDTAB, 4, 4, 4, 4);
+  UART_Init(); 
   PortB_Init();       // profile user threads
   NumCreated = 0 ;
-  NumCreated += OS_AddThread(&Thread1_coop,2,1); 
-  NumCreated += OS_AddThread(&Thread2_coop,2,2); 
-  NumCreated += OS_AddThread(&Thread3_coop,2,3); 
+  //NumCreated += OS_AddThread(&INTERPRETER_Run,2,1); 
+  
+  
+  SysTick_Init(800);
   // Count1 Count2 Count3 should be equal or off by one at all times
+  OS_Launch(TIME_2MS);
+  return 0;
+}
+
+/*
+Sorry the main is a mess right now. Port B and LCD code are mutually exclusive.... haha
+*/
+
+int main(void){  // Testmain1 coop
+  
+  PLL_Init(Bus50MHz);       // set system clock to 50 MHz
+  UART_Init();              // initialize UART
+  INTERPRETER_initArray();
+  ST7735_ds_InitR(INITR_REDTAB, 4, 4, 4, 4);
+  OS_Init();
+  //PortB_Init();
+  //INTERPRETER_Run();
+  NumCreated = 0 ;
+  //NumCreated += OS_AddThread(&Thread1_pre,2,1); 
+  NumCreated += OS_AddThread(&INTERPRETER_Run,2,1);   
+  //NumCreated += OS_AddThread(&Thread2_coop,2,2); 
+  //NumCreated += OS_AddThread(&Thread3_coop,2,3); 
+  // Count1 Count2 Count3 should be equal or off by one at all times
+  SysTick_Init(8000);
   OS_Launch(TIME_2MS); // doesn't return, interrupts enabled in here
   return 0;            // this never executes
 }
 
-int main67(void){  // Testmain2 preemptive
+int main12(void){  // Testmain2 preemptive
   PLL_Init(Bus80MHz);                 // bus clock at 80 MHz
   OS_Init();          // initialize, disable interrupts
   PortB_Init();       // profile user threads
@@ -770,7 +796,7 @@ int Testmain6(void){      // Testmain6  Lab 3
   return 0;             // this never executes
 }
 
-*/
+
 //******************* Lab 3 Measurement of context switch time**********
 // Run this to measure the time it takes to perform a task switch
 // UART0 not needed 
@@ -786,13 +812,12 @@ void Thread8(void){       // only thread running
     PB2 ^= 0x04;      // debugging profile  
   }
 }
-int main(void){       // Testmain7
-  PLL_Init(Bus80MHz);
+int Testmain7(void){       // Testmain7
   PortB_Init();
   OS_Init();           // initialize, disable interrupts
-  SysTick_Init(8000);
   NumCreated = 0 ;
   NumCreated += OS_AddThread(&Thread8,128,2); 
   OS_Launch(TIME_1MS/10); // 100us, doesn't return, interrupts enabled in here
   return 0;             // this never executes
 }
+*/

@@ -54,7 +54,7 @@ void SysTick_Init(uint32_t time){
   NVIC_ST_RELOAD_R = (NVIC_ST_RELOAD_M & time);  // maximum reload value
   NVIC_ST_CURRENT_R = 0;                // any write to current clears it
   //set priority of 6 for systick                                   
-  NVIC_SYS_PRI3_R |=6<<29;              //priority 6, one higher than pendsv
+  NVIC_SYS_PRI3_R |=6<<29;  
   NVIC_ST_CTRL_R = 0x7;                 // enable SysTick with core clock and interrupts
   
 }
@@ -88,7 +88,7 @@ uint32_t getTime(void){
 }
 
 void SysTick_Handler(void){
-  PB5 ^= 0x20;
-  //NVIC_INT_CTRL_R = 0x10000000; // Trigger PendSV
-  OS_Suspend();
+  //PB5 ^= 0x20;
+  
+  OS_Suspend(); // Trigger PendSV
 }

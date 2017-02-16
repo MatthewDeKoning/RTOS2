@@ -17,22 +17,58 @@
 #define TIME_250US  (TIME_1MS/5) 
 
 
+/* ---------------------------------------------------- */
+/*                      OS OBJECTS                      */
+/* ---------------------------------------------------- */
 
-/*
+typedef unsigned char OS_objectType;
+enum OS_objectType{
+  tcb,
+  semaphore,
+  mutex
+};
+
+struct TCB{
+	//stack
+	uint32_t *stackPt;
+  struct TCB* next;
+  struct TCB* prev;
+	uint32_t MoreStack[83];
+	uint32_t Regs[14];
+	void (*PC)(void);
+	uint32_t PSR;
+	//state variables
+	uint8_t id;
+	uint32_t sleep;
+	uint8_t priority;
+	uint8_t blocked;
+};
+
+typedef struct TCB TCBType;
+
+struct Mutex{
+  OS_objectType       Type;
+  char               *NamePtr;
+  long                Value;
+};
+typedef struct Mutex MutexType;
+
+
 // feel free to change the type of semaphore, there are lots of good solutions
 struct  Sema4{
   long Value;   // >0 means free, otherwise means busy        
 // add other components here, if necessary to implement blocking
 };
 typedef struct Sema4 Sema4Type;
-*/
+
+
 // ******** OS_Init ************
 // initialize operating system, disable interrupts until OS_Launch
 // initialize OS controlled I/O: serial, ADC, systick, LaunchPad I/O and timers 
 // input:  none
 // output: none
 void OS_Init(void); 
-/*
+
 // ******** OS_InitSemaphore ************
 // initialize semaphore 
 // input:  pointer to a semaphore
@@ -68,7 +104,7 @@ void OS_bWait(Sema4Type *semaPt);
 // input:  pointer to a binary semaphore
 // output: none
 void OS_bSignal(Sema4Type *semaPt); 
-*/
+
 //******** OS_AddThread *************** 
 // add a foregound thread to the scheduler
 // Inputs: pointer to a void/void foreground task
@@ -143,13 +179,13 @@ int OS_AddSW2Task(void(*task)(void), unsigned long priority);
 // You are free to select the time resolution for this function
 // OS_Sleep(0) implements cooperative multitasking
 void OS_Sleep(unsigned long sleepTime); 
-
+*/
 // ******** OS_Kill ************
 // kill the currently running thread, release its TCB and stack
 // input:  none
 // output: none
 void OS_Kill(void); 
-*/
+
 // ******** OS_Suspend ************
 // suspend execution of currently running thread
 // scheduler will choose another thread to execute

@@ -1,27 +1,65 @@
 #include "os.h"
+#include "FIFO.h"
 #include "../inc/tm4c123gh6pm.h"
-struct TCB{
-	//stack
-	uint32_t *stackPt;
-  struct TCB* next;
-	uint32_t MoreStack[83];
-	uint32_t Regs[14];
-	void (*PC)(void);
-	uint32_t PSR;
-	//state variables
-	uint8_t id;
-	uint32_t sleep;
-	uint8_t priority;
-	uint8_t blocked;
-};
 
-typedef struct TCB TCBType;
+
+#define FIFOSIZE   16         // size of the FIFOs (must be power of 2)
+#define FIFOSUCCESS 1         // return value on success
+#define FIFOFAIL    0         // return value on failure
+                              // create index implementation FIFO (see FIFO.h)
+//AddIndexFifo(Rx_OS, FIFOSIZE, char, FIFOSUCCESS, FIFOFAIL)
+//AddIndexFifo(Tx_OS, FIFOSIZE, char, FIFOSUCCESS, FIFOFAIL)
+
+
+
 
 TCBType* RunPt;
 //TCBType* NextPt;
 const uint8_t TCB_COUNT = 3;
 TCBType tcbs[TCB_COUNT];
 
+void OS_Wait(Sema4Type *semaPt){
+  DisableInterrupts();
+  while(semaPt->Value <=0){
+    EnableInterrupts();
+    DisableInterrupts();
+    //OS_Suspend();
+  }
+  semaPt->Value = semaPt->Value - 1;
+  EnableInterrupts();
+  
+}
+
+void OS_Signal(Sema4Type *semaPt){
+  long status;
+  status = StartCritical();
+  semaPt->Value = semaPt->Value + 1;
+  EndCritical(status);
+  
+}
+
+void OS_Waitb(Sema4Type *semaPt){
+  DisableInterrupts();
+  while(semaPt->Value != 1){
+    EnableInterrupts();
+    DisableInterrupts();
+    //OS_Suspend();
+  }
+  semaPt->Value = 0;
+  EnableInterrupts();
+  
+}
+
+void OS_Signalb(Sema4Type *semaPt){
+  long status;
+  status = StartCritical();
+  semaPt->Value = 1;
+  EndCritical(status);
+}
+
+void OS_InitSemaphore(Sema4Type *semaPt, long value){
+  semaPt->Value = value;
+}
 
 
 void OS_Suspend(void){
@@ -31,6 +69,21 @@ void OS_Suspend(void){
 
 uint8_t OS_Id(void){
   return RunPt->id;
+}
+
+void OS_Kill(void){
+  struct TCB* new_prev = RunPt->prev;
+  struct TCB* new_next = RunPt->next;
+  
+  //properly link the tasks before and after the current
+  new_next->prev = new_prev;
+  new_prev->next = new_next;
+  
+  //set current running id to 0 for killed
+  RunPt->id = 0;
+  
+  //call os suspend to context switch to the next tasks
+  OS_Suspend();
 }
 
 int OS_AddThread(void(*task)(void),  uint8_t priority, uint8_t id){
@@ -43,12 +96,14 @@ int OS_AddThread(void(*task)(void),  uint8_t priority, uint8_t id){
 			tcbs[i-1].PSR = 0x01000000;
 			if(RunPt == 0){
 				tcbs[i-1].next = &tcbs[i-1];
+        tcbs[i-1].prev = &tcbs[i-1];
 				RunPt = &tcbs[i-1];
 			}
 			else{
 				struct TCB* placeHolder = RunPt->next;
 				RunPt->next = (&tcbs[i-1]);
 				tcbs[i-1].next = placeHolder;
+        placeHolder->prev = &tcbs[i-1];
 			}
 			return 1;
 		}
@@ -81,4 +136,5 @@ void OS_Init(void){
     tcbs[i-1].stackPt = &tcbs[i-1].Regs[0];
   }
   NVIC_SYS_PRI3_R |= 7<<21;
+  DisableInterrupts();
 }
