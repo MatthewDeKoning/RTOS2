@@ -29,12 +29,8 @@ void INTERPRETER_Run(){
     }
     else{
       //UART_OutString(interpreter_msg);
-      //ST7735_InitR(INITR_REDTAB); //This resets the SSI0 port (and unfortunately undoes the lines...)
       //if you want to check out the crash, uncomment the line above
-      ST7735_ds_SetCursor(interpreter_device, 0, interpreter_line);
-      ST7735_ds_OutString(interpreter_device, "                    ");
-      ST7735_ds_SetCursor(interpreter_device, 0, interpreter_line);
-      ST7735_ds_OutString(interpreter_device, interpreter_msg);
+      OS_MailBox_Send(interpreter_device, interpreter_line, interpreter_msg);
     }
     OutCRLF();
   }

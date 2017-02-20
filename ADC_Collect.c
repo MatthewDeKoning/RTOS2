@@ -229,7 +229,12 @@ void ADC_Collect(uint8_t channelNum, uint32_t FS, void(*task)(unsigned long)){
 
 }
 
+static volatile uint16_t ADCValue;
+uint16_t ADC_Get(){
+  return ADCValue;
+}
 void static ADC0Seq3_Handler(void){
   ADC0_ISC_R = 0x08;          // acknowledge ADC sequence 3 completion
   TASK(ADC0_SSFIFO3_R);  // 12-bit result
+  ADCValue = ADC0_SSFIFO3_R;
 }

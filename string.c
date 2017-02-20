@@ -10,8 +10,8 @@ char* itoa(int num, char* str, int base, int offset)
   
   //handle 0
   if (num == 0){
-    str[i++] = '0';
-    str[i] = '\0';
+    str[offset++] = '0';
+    str[offset] = '\0';
     return str;
   }
  

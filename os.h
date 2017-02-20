@@ -134,7 +134,7 @@ int OS_AddThread(void(*task)(void),  uint8_t priority, uint8_t id);
 // Inputs: none
 // Outputs: Thread ID, number greater than zero 
 uint8_t OS_Id(void);
-/*
+
 //******** OS_AddPeriodicThread *************** 
 // add a background periodic task
 // typically this function receives the highest priority
@@ -168,8 +168,8 @@ int OS_AddPeriodicThread(void(*task)(void),
 // In lab 2, the priority field can be ignored
 // In lab 3, there will be up to four background threads, and this priority field 
 //           determines the relative priority of these four threads
-int OS_AddSW1Task(void(*task)(void), unsigned long priority);
-
+int OS_AddSW1Task(void(*pushTask)(void), void(*pullTask)(void), unsigned long priority);
+/*
 //******** OS_AddSW2Task *************** 
 // add a background task to run whenever the SW2 (PF0) button is pushed
 // Inputs: pointer to a void/void background function
@@ -250,7 +250,7 @@ unsigned long OS_Fifo_Size(void);
 // Inputs:  none
 // Outputs: none
 void OS_MailBox_Init(void);
-
+int OS_MailBox_Count();
 // ******** OS_MailBox_Send ************
 // enter mail into the MailBox
 // Inputs:  data to be sent
@@ -265,8 +265,8 @@ void OS_MailBox_Send(int device, int line, char* message);
 // Outputs: data received
 // This function will be called from a foreground thread
 // It will spin/block if the MailBox is empty 
-Mail* OS_MailBox_Recv(void);
-/*
+Mail OS_MailBox_Recv();
+
 // ******** OS_Time ************
 // return the system time 
 // Inputs:  none
@@ -299,7 +299,7 @@ void OS_ClearMsTime(void);
 // You are free to select the time resolution for this function
 // It is ok to make the resolution to match the first call to OS_AddPeriodicThread
 unsigned long OS_MsTime(void);
-*/
+
 //******** OS_Launch *************** 
 // start the scheduler, enable interrupts
 // Inputs: number of 12.5ns clock cycles for each time slice

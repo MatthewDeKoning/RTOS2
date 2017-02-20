@@ -21,3 +21,4 @@
 //         task   function that will be passes the data 
 void ADC_Collect(uint8_t channelNum, uint32_t FS, void(*task)(unsigned long));
 
+uint16_t ADC_Get();

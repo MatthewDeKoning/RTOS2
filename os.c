@@ -4,6 +4,12 @@
 #include "../inc/tm4c123gh6pm.h"
 
 
+#define TRUE  1
+#define FALSE 0
+
+#define ROUND_ROBIN_SCH   TRUE
+#define PRIORITY_SCH      FALSE
+#define POSTOFFICESIZE 32
 #define FIFOSIZE   128         // size of the FIFOs (must be power of 2)
 #define FIFOSUCCESS 1         // return value on success
 #define FIFOFAIL    0         // return value on failure
@@ -13,34 +19,49 @@
 
 static uint8_t OS_FIFO_Index;
 
+static Sema4Type FIFO_Protect;
+
 AddIndexFifo(OS, FIFOSIZE, unsigned long, FIFOSUCCESS, FIFOFAIL)
 
-static uint8_t OS_Mailbox_Index;
+AddIndexFifo(POSTOFFICE, POSTOFFICESIZE, Mail, FIFOSUCCESS, FIFOFAIL);
 
-static Mail mailBox[30];
+static uint8_t OS_MAIL_Index;
 
+static Sema4Type MailFree;
+static Sema4Type MailValid;
 
 void OS_Fifo_Init(){
   OSFifo_Init();
   OS_FIFO_Index = 0;
+  FIFO_Protect.Value = 1;
 }
 
 int OS_Fifo_Put(unsigned long data){
   if(OS_FIFO_Index < (FIFOSIZE -1)){
+    OS_Wait(&FIFO_Protect);
+    DisableInterrupts();
     OSFifo_Put(data);
     OS_FIFO_Index++;
+    EnableInterrupts();
+    OS_Signal(&FIFO_Protect);
+    
     return FIFOSUCCESS;
   }
   return FIFOFAIL;
 }
 
 unsigned long OS_Fifo_Get(void){
+  
   unsigned long ret;
   if(OS_FIFO_Index <= 0){
     return FIFOFAIL;
   }
+  OS_Wait(&FIFO_Protect);
+  DisableInterrupts();
   OSFifo_Get(&ret);
   OS_FIFO_Index--;
+  EnableInterrupts();
+  OS_Signal(&FIFO_Protect);
   return ret;
 }
 
@@ -49,38 +70,44 @@ unsigned long OS_Fifo_Size(void){
 }
 
 void OS_MailBox_Init(){
-  OS_Mailbox_Index = 0;
+  MailFree.Value = 32;
+  MailValid.Value = 0;
+  POSTOFFICEFifo_Init();
 }
 
 void OS_MailBox_Send(int device, int line, char* message){
   int i;
-  if(OS_Mailbox_Index < (MAILBOXSIZE-1)){
-    mailBox[OS_Mailbox_Index].device = device;
-    mailBox[OS_Mailbox_Index].line = line;
-    for(i = 0; i < 20; i++){
-      mailBox[OS_Mailbox_Index].message[i] = message[i];
-    }
-    OS_Mailbox_Index++;
+  Mail NextMail;
+  NextMail.device = device;
+  NextMail.line = line;
+  for(i = 0; i < 20; i++){
+      NextMail.message[i] = message[i];
   }
-  else{
-    
-  }
+  
+  OS_Wait(&MailFree);
+  DisableInterrupts();
+  POSTOFFICEFifo_Put(NextMail);
+  EnableInterrupts();
+  OS_Signal(&MailValid);
 }
 
-Mail* OS_MailBox_Recv(void){
-  if(OS_Mailbox_Index > 0){
-    return &mailBox[OS_Mailbox_Index--];
-    
-  }
-  else{
-    return 0;
-  }
+Mail OS_MailBox_Recv(int i){
+  Mail ret;
+  OS_Wait(&MailValid);
+  DisableInterrupts();
+  POSTOFFICEFifo_Get(&ret);
+  EnableInterrupts();
+  OS_Signal(&MailFree);
+  return ret;
 }
 
+int OS_MailBox_Count(){
+  return MailValid.Value;
+}
 TCBType* RunPt;
 TCBType* NextPt;
 
-const uint8_t TCB_COUNT = 3;
+const uint8_t TCB_COUNT = 7;
 TCBType tcbs[TCB_COUNT];
 
 void OS_Wait(Sema4Type *semaPt){
@@ -88,7 +115,7 @@ void OS_Wait(Sema4Type *semaPt){
   while(semaPt->Value <=0){
     EnableInterrupts();
     DisableInterrupts();
-    //OS_Suspend();
+    OS_Suspend();
   }
   semaPt->Value = semaPt->Value - 1;
   EnableInterrupts();
@@ -108,7 +135,7 @@ void OS_Waitb(Sema4Type *semaPt){
   while(semaPt->Value != 1){
     EnableInterrupts();
     DisableInterrupts();
-    //OS_Suspend();
+    OS_Suspend();
   }
   semaPt->Value = 0;
   EnableInterrupts();
@@ -127,6 +154,10 @@ void OS_InitSemaphore(Sema4Type *semaPt, long value){
 }
 
 void OS_Scheduler(void){
+#if PRIORITY_SCH
+  //write priority scheduler here
+#endif
+#if ROUND_ROBIN_SCH
   NextPt = 0;
   struct TCB* next = RunPt->next;
   while(NextPt == 0){
@@ -135,9 +166,9 @@ void OS_Scheduler(void){
       break;
     }
     else{
-      if(SYSTICK_getCount(next->id) >= next->count)
+      if(SYSTICK_getCount(next->id) >= next->sleep)
       {
-        next->count = 0;
+        next->sleep = 0;
         NextPt = next;
       }
       else{
@@ -145,7 +176,9 @@ void OS_Scheduler(void){
       }
     }
   }
+#endif //ROUND_ROBIN_SCH
 }
+
 
 void OS_Suspend(void){
   //call scheduler
@@ -171,7 +204,9 @@ void OS_Kill(void){
   //call os suspend to context switch to the next tasks
   OS_Suspend();
 }
-
+int OS_AddSW1Task(void(*pushTask)(void), void(*pullTask)(void), unsigned long priority){
+  Switch_Init(&pushTask, &pullTask);
+}
 int OS_AddThread(void(*task)(void),  uint8_t priority, uint8_t id){
   uint8_t i;
 	for(i = TCB_COUNT; i > 0; i--){
@@ -189,6 +224,7 @@ int OS_AddThread(void(*task)(void),  uint8_t priority, uint8_t id){
 				struct TCB* placeHolder = RunPt->next;
 				RunPt->next = (&tcbs[i-1]);
 				tcbs[i-1].next = placeHolder;
+        tcbs[i-1].prev = RunPt;
         placeHolder->prev = &tcbs[i-1];
 			}
 			return 1;
@@ -202,6 +238,58 @@ void OS_Sleep(unsigned long sleepTime){
   RunPt->sleep = sleepTime;
   SYSTICK_setCount(RunPt->id);
   OS_Suspend();
+}
+// ***************** TIMER1_Init ****************
+// Activate TIMER1 for OS_Time clock cycles
+// Inputs:  none
+// Outputs: none
+void Timer1_Init(void){
+  SYSCTL_RCGCTIMER_R |= 0x02;   // 0) activate TIMER1
+  TIMER1_CTL_R = 0x00000000;    // 1) disable TIMER1A during setup
+  TIMER1_CFG_R = 0x00000000;    // 2) configure for 32-bit mode
+  TIMER1_TAMR_R = TIMER_TAMR_TACDIR; // 3) configure for count up
+  TIMER1_TAPR_R = 0;            // 5) bus clock resolution
+  TIMER1_TAR_R = 0;
+  TIMER1_CTL_R = 0x00000001;    // 10) enable TIMER1A
+}
+
+// ***************** OS_Time ****************
+// Runtime in clock cycles
+// Inputs:  none
+// Outputs: runtime
+unsigned long OS_Time(void){
+  return TIMER1_TAR_R;
+}
+
+unsigned long OS_TimeDifference(unsigned long start, unsigned long stop){
+  return start-stop;
+}
+
+static void (*PERIODICTASK)(void);
+void Timer2_Init(void(*task)(void), unsigned long period){
+  SYSCTL_RCGCTIMER_R |= 0x04;   // 0) activate timer2
+  PERIODICTASK = task;          // user function
+  TIMER2_CTL_R = 0x00000000;    // 1) disable timer2A during setup
+  TIMER2_CFG_R = 0x00000000;    // 2) configure for 32-bit mode
+  TIMER2_TAMR_R = 0x00000002;   // 3) configure for periodic mode, default down-count settings
+  TIMER2_TAILR_R = period-1;    // 4) reload value
+  TIMER2_TAPR_R = 0;            // 5) bus clock resolution
+  TIMER2_ICR_R = 0x00000001;    // 6) clear timer2A timeout flag
+  TIMER2_IMR_R = 0x00000001;    // 7) arm timeout interrupt
+  NVIC_PRI5_R = (NVIC_PRI5_R&0x00FFFFFF)|0x80000000; // 8) priority 4
+// interrupts enabled in the main program after all devices initialized
+// vector number 39, interrupt number 23
+  NVIC_EN0_R = 1<<23;           // 9) enable IRQ 23 in NVIC
+  TIMER2_CTL_R = 0x00000001;    // 10) enable timer2A
+}
+
+void Timer2A_Handler(void){
+  TIMER2_ICR_R = TIMER_ICR_TATOCINT;// acknowledge TIMER2A timeout
+  (*PERIODICTASK)();                // execute user task
+}
+
+int OS_AddPeriodicThread(void(*task)(void), unsigned long period, unsigned long priority){
+   Timer2_Init(task, period);
 }
 
 void OS_Init(void){
@@ -229,4 +317,13 @@ void OS_Init(void){
   }
   NVIC_SYS_PRI3_R |= 7<<21;
   DisableInterrupts();
+  Timer1_Init(); //This is OS time
+}
+
+void OS_ClearMsTime(void){
+  Timer1_Init();
+}
+unsigned long OS_MsTime(void){
+  return TIMER1_TAR_R/80000;
+  
 }

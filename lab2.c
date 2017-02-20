@@ -38,6 +38,7 @@
 #include <stdint.h>
 
 unsigned long NumCreated;
+#include "Switch.h"
 #include "ST7735.h"
 #include "ADC_Collect.h"
 #include "UART.h"
@@ -83,7 +84,7 @@ void PortB_Init(void){ unsigned long volatile delay;
   GPIO_PORTB_PCTL_R = ~0x00FFFF00;
   GPIO_PORTB_AMSEL_R &= ~0x3C;      // disable analog functionality on PB
 }
-/*
+
 //------------------Task 1--------------------------------
 // 2 kHz sampling ADC channel 1, using software start trigger
 // background thread executed at 2 kHz
@@ -115,7 +116,7 @@ unsigned long thisTime;         // time at current ADC sample
 long jitter;                    // time between measured and expected, in us
   if(NumSamples < RUNLENGTH){   // finite time run
     PB2 ^= 0x04;
-    input = ADC_In();           // channel set when calling ADC_Init
+    input = ADC_Get();           // channel set when calling ADC_Init
     PB2 ^= 0x04;
     thisTime = OS_Time();       // current time, 12.5 ns
     DASoutput = Filter(input);
@@ -140,38 +141,59 @@ long jitter;                    // time between measured and expected, in us
   }
 }
 //--------------end of Task 1-----------------------------
-*/
+static char task2string[20];
+const char* one = "NumCreated = ";
+const char* two = "PIDWork = ";
+const char* three = "DataLost = ";
+const char* four = "Jitter 0.1us= ";
 //------------------Task 2--------------------------------
 // background thread executes with SW1 button
 // one foreground task created with button push
 // foreground treads run for 2 sec and die
 // ***********ButtonWork*************
 void ButtonWork(void){
-unsigned long myId = OS_Id(); 
+  uint8_t i;
+  unsigned long myId = OS_Id(); 
   PB3 ^= 0x08;
-  ST7735_ds_Message(1,0,"NumCreated =",NumCreated); 
+  for(i = 0; i < 13; i++){task2string[i] = one[i];}
+  itoa(NumCreated, task2string, 10, 13);
+  OS_MailBox_Send(1, 0, task2string);
+  
   PB3 ^= 0x08;
   OS_Sleep(50);     // set this to sleep for 50msec
-  ST7735_ds_Message(1,1,"PIDWork     =",PIDWork);
-  ST7735_ds_Message(1,2,"DataLost    =",DataLost);
-  ST7735_ds_Message(1,3,"Jitter 0.1us=",MaxJitter);
+  for(i = 0; i < 20; i++){task2string[i] = '\0';}
+  for(i = 0; i < 10; i++){task2string[i] = two[i];}
+  itoa(PIDWork, task2string, 10, 10);
+  OS_MailBox_Send(1, 1, task2string); 
+  for(i = 0; i < 20; i++){task2string[i] = '\0';}
+  for(i = 0; i < 11; i++){task2string[i] = three[i];}
+  itoa(DataLost, task2string, 10, 11);
+  OS_MailBox_Send(1, 2, task2string); 
+  for(i = 0; i < 20; i++){task2string[i] = '\0';}
+  for(i = 0; i < 14; i++){task2string[i] = four[i];}
+  itoa(MaxJitter, task2string, 10, 14);
+  OS_MailBox_Send(1, 3, task2string); 
   PB3 ^= 0x08;
   OS_Kill();  // done, OS does not return from a Kill
 } 
 
-/*
+
 //************SW1Push*************
 // Called when SW1 Button pushed
 // Adds another foreground task
 // background threads execute once and return
-void SW1Push(void){
+void SW1Release(void){
   if(OS_MsTime() > 20){ // debounce
     if(OS_AddThread(&ButtonWork,100,4)){
       NumCreated++; 
     }
     OS_ClearMsTime();  // at least 20ms between touches
   }
-}/*
+}
+void SW1Push(void){
+  OS_ClearMsTime();
+}
+/*
 //************SW2Push*************
 // Called when SW2 Button pushed, Lab 3 only
 // Adds another foreground task
@@ -229,7 +251,7 @@ uint8_t i;
     message[i] = msgStart[i];
   }
   ADC_Collect(5, FS, &Producer); // start ADC sampling, channel 5, PD2, 400 Hz
-  NumCreated += OS_AddThread(&Display,128,0); 
+  //NumCreated += OS_AddThread(&Display,128,0); 
   while(NumSamples < RUNLENGTH) { 
     PB4 = 0x10;
     for(t = 0; t < 64; t++){   // collect 64 ADC samples
@@ -251,15 +273,22 @@ uint8_t i;
 // inputs:  none                            
 // outputs: none
 void Display(void){
-  Mail* data; uint8_t device, line;
-  ST7735_ds_Message(3,3,"Run length = ",(RUNLENGTH)/FS);   // top half used for Display
-  while(NumSamples < RUNLENGTH) { 
-    data = OS_MailBox_Recv();
-    ST7735_ds_SetCursor(data->device, 0, data->line);
-    ST7735_ds_OutString(data->device, data->message);
-    PB5 = 0x20;
+  Mail data;
+  //ST7735_ds_Message(3,3,"Run length = ",(RUNLENGTH)/FS);   // top half used for Display
+  //while(NumSamples < RUNLENGTH) { 
+  while(1){
+    if(OS_MailBox_Count()){
+      data = OS_MailBox_Recv();
+      ST7735_ds_SetCursor((data).device, 0, (data).line);
+      ST7735_ds_OutString((data).device, "                    ");
+      ST7735_ds_SetCursor((data).device, 0, (data).line);
+      ST7735_ds_OutString((data).device, (data).message);
+      PB5 = 0x20;
+    }
+    else{
+      OS_Suspend();
+    }
   } 
-  OS_Kill();  // done
 } 
 
 //--------------end of Task 3-----------------------------
@@ -435,17 +464,25 @@ Sorry the main is a mess right now. Port B and LCD code are mutually exclusive..
 
 int main(void){  // Testmain1 coop
   
-  PLL_Init(Bus50MHz);       // set system clock to 50 MHz
+  PLL_Init(Bus80MHz);       // set system clock to 50 MHz
   UART_Init();              // initialize UART
   INTERPRETER_initArray();
   PortB_Init();
   ST7735_ds_InitR(INITR_REDTAB, 4, 4, 4, 4);
   OS_Init();
+  OS_MailBox_Init();
+  DataLost = 0;        // lost data between producer and consumer
+  NumSamples = 0;
+  MaxJitter = 0;       // in 1us units
+  OS_AddSW1Task(&SW1Push, &SW1Release, 2);
   //
   //INTERPRETER_Run();
   NumCreated = 0 ;
-  NumCreated += OS_AddThread(&Thread1_pre,2,1); 
-  NumCreated += OS_AddThread(&INTERPRETER_Run,2,1);   
+  NumCreated += OS_AddThread(&PID,2,1); 
+  NumCreated += OS_AddThread(&INTERPRETER_Run,2,2);   
+  NumCreated += OS_AddThread(&Display,2,3);  
+  OS_AddPeriodicThread(&DAS,40000,1); //add DAS sampling at 2KHz
+  //NumCreated += OS_AddThread(&Consumer, 2, 4);
   //NumCreated += OS_AddThread(&Thread2_coop,2,2); 
   //NumCreated += OS_AddThread(&Thread3_coop,2,3); 
   // Count1 Count2 Count3 should be equal or off by one at all times
@@ -462,6 +499,7 @@ int main12(void){  // Testmain2 preemptive
   NumCreated += OS_AddThread(&Thread1_pre,2,1); 
   NumCreated += OS_AddThread(&Thread2_pre,2,2); 
   NumCreated += OS_AddThread(&Thread3_pre,2,3); 
+  NumCreated += OS_AddThread(&ButtonWork,2,4);
   
   SysTick_Init(800);
   // Count1 Count2 Count3 should be equal or off by one at all times
