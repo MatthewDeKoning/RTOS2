@@ -110,6 +110,7 @@ static unsigned long n=3;   // 3, 4, or 5
 // outputs: none
 unsigned long DASoutput;
 void DAS(void){ 
+DisableInterrupts();
 unsigned long input;  
 unsigned static long LastTime;  // time at previous ADC sample
 unsigned long thisTime;         // time at current ADC sample
@@ -139,6 +140,7 @@ long jitter;                    // time between measured and expected, in us
     LastTime = thisTime;
     PB2 ^= 0x04;
   }
+  EnableInterrupts();
 }
 //--------------end of Task 1-----------------------------
 static char task2string[20];
@@ -462,7 +464,7 @@ int main22(void){
 Sorry the main is a mess right now. Port B and LCD code are mutually exclusive.... haha
 */
 
-int main(void){  // Testmain1 coop
+int main112(void){  // Testmain1 coop
   
   PLL_Init(Bus80MHz);       // set system clock to 50 MHz
   UART_Init();              // initialize UART
@@ -470,6 +472,7 @@ int main(void){  // Testmain1 coop
   PortB_Init();
   ST7735_ds_InitR(INITR_REDTAB, 4, 4, 4, 4);
   OS_Init();
+  OS_Fifo_Init();
   OS_MailBox_Init();
   DataLost = 0;        // lost data between producer and consumer
   NumSamples = 0;
@@ -481,8 +484,9 @@ int main(void){  // Testmain1 coop
   NumCreated += OS_AddThread(&PID,2,1); 
   NumCreated += OS_AddThread(&INTERPRETER_Run,2,2);   
   NumCreated += OS_AddThread(&Display,2,3);  
-  OS_AddPeriodicThread(&DAS,40000,1); //add DAS sampling at 2KHz
-  //NumCreated += OS_AddThread(&Consumer, 2, 4);
+  //OS_AddPeriodicThread(&DAS,40000,1); //add DAS sampling at 2KHz
+  NumCreated += OS_AddThread(&Consumer, 2, 4);
+  OS_AddPeriodicThread(&DAS,40000,1);
   //NumCreated += OS_AddThread(&Thread2_coop,2,2); 
   //NumCreated += OS_AddThread(&Thread3_coop,2,3); 
   // Count1 Count2 Count3 should be equal or off by one at all times
@@ -506,7 +510,7 @@ int main12(void){  // Testmain2 preemptive
   OS_Launch(TIME_2MS); // doesn't return, interrupts enabled in here
   return 0;            // this never executes
 }
-/*
+
 //*******************Second TEST**********
 // Once the initalize test runs, test this (Lab 1 part 1)
 // no UART interrupts
@@ -576,8 +580,8 @@ void Thread2c(void){
   Count1 = 0;    // number of times signal is called      
   Count2 = 0;    
   Count5 = 0;    // Count2 + Count5 should equal Count1  
-  NumCreated += OS_AddThread(&Thread5c,128,3); 
-  OS_AddPeriodicThread(&BackgroundThread1c,TIME_1MS,0); 
+  NumCreated += OS_AddThread(&Thread5c,128,5); 
+  OS_AddPeriodicThread(&BackgroundThread1c,70000,0); 
   for(;;){
     OS_Wait(&Readyc);
     Count2++;   // Count2 + Count5 should equal Count1
@@ -590,6 +594,7 @@ void Thread3c(void){
     Count3++;
   }
 }
+
 void Thread4c(void){ int i;
   for(i=0;i<64;i++){
     Count4++;
@@ -599,18 +604,24 @@ void Thread4c(void){ int i;
   Count4 = 0;
 }
 void BackgroundThread5c(void){   // called when Select button pushed
-  NumCreated += OS_AddThread(&Thread4c,128,3); 
+  NumCreated += OS_AddThread(&Thread4c,128,5); 
 }
-      
-int Testmain3(void){   // Testmain3
+void None(){
+  
+}  
+int main(void){   // Testmain3
   Count4 = 0;          
+  PLL_Init(Bus80MHz);
+  
   OS_Init();           // initialize, disable interrupts
 // Count2 + Count5 should equal Count1
   NumCreated = 0 ;
-  OS_AddSW1Task(&BackgroundThread5c,2);
+  OS_AddSW1Task(&BackgroundThread5c, &None, 2);
   NumCreated += OS_AddThread(&Thread2c,128,2); 
   NumCreated += OS_AddThread(&Thread3c,128,3); 
-  NumCreated += OS_AddThread(&Thread4c,128,3); 
+  NumCreated += OS_AddThread(&Thread4c,128,4); 
+  //NumCreated += OS_AddThread(&Thread5c, 128, 5);
+  SysTick_Init(80000);
   OS_Launch(TIME_2MS); // doesn't return, interrupts enabled in here
   return 0;            // this never executes
 }
@@ -663,6 +674,7 @@ void Thread4d(void){ int i;
 void BackgroundThread5d(void){   // called when Select button pushed
   NumCreated += OS_AddThread(&Thread4d,128,3); 
 }
+/*
 int Testmain4(void){   // Testmain4
   Count4 = 0;          
   OS_Init();           // initialize, disable interrupts

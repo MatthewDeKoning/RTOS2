@@ -17,9 +17,11 @@
 #define MAILBOXSIZE 30
 
 
+
 static uint8_t OS_FIFO_Index;
 
-static Sema4Type FIFO_Protect;
+static Sema4Type FIFO_Free;
+static Sema4Type FIFO_Valid;
 
 AddIndexFifo(OS, FIFOSIZE, unsigned long, FIFOSUCCESS, FIFOFAIL)
 
@@ -32,18 +34,17 @@ static Sema4Type MailValid;
 
 void OS_Fifo_Init(){
   OSFifo_Init();
-  OS_FIFO_Index = 0;
-  FIFO_Protect.Value = 1;
+  FIFO_Free.Value = 128;
+  FIFO_Valid.Value = 0;
 }
 
 int OS_Fifo_Put(unsigned long data){
-  if(OS_FIFO_Index < (FIFOSIZE -1)){
-    OS_Wait(&FIFO_Protect);
+  if(FIFO_Free.Value > 0){
+    OS_Wait(&FIFO_Free);
     DisableInterrupts();
     OSFifo_Put(data);
-    OS_FIFO_Index++;
     EnableInterrupts();
-    OS_Signal(&FIFO_Protect);
+    OS_Signal(&FIFO_Valid);
     
     return FIFOSUCCESS;
   }
@@ -53,20 +54,17 @@ int OS_Fifo_Put(unsigned long data){
 unsigned long OS_Fifo_Get(void){
   
   unsigned long ret;
-  if(OS_FIFO_Index <= 0){
-    return FIFOFAIL;
-  }
-  OS_Wait(&FIFO_Protect);
+  OS_Wait(&FIFO_Valid);
   DisableInterrupts();
   OSFifo_Get(&ret);
   OS_FIFO_Index--;
   EnableInterrupts();
-  OS_Signal(&FIFO_Protect);
+  OS_Signal(&FIFO_Free);
   return ret;
 }
 
 unsigned long OS_Fifo_Size(void){
-  return OS_FIFO_Index;
+  return FIFO_Free.Value;
 }
 
 void OS_MailBox_Init(){
@@ -107,8 +105,13 @@ int OS_MailBox_Count(){
 TCBType* RunPt;
 TCBType* NextPt;
 
-const uint8_t TCB_COUNT = 7;
+const uint8_t TCB_COUNT = 10;
 TCBType tcbs[TCB_COUNT];
+static uint32_t periodicTimes[5];
+static uint32_t periods[5];
+static void (*PERIODICTASKS[5])(void);
+static uint8_t periodicIndex;
+
 
 void OS_Wait(Sema4Type *semaPt){
   DisableInterrupts();
@@ -130,7 +133,7 @@ void OS_Signal(Sema4Type *semaPt){
   
 }
 
-void OS_Waitb(Sema4Type *semaPt){
+void OS_bWait(Sema4Type *semaPt){
   DisableInterrupts();
   while(semaPt->Value != 1){
     EnableInterrupts();
@@ -142,7 +145,7 @@ void OS_Waitb(Sema4Type *semaPt){
   
 }
 
-void OS_Signalb(Sema4Type *semaPt){
+void OS_bSignal(Sema4Type *semaPt){
   long status;
   status = StartCritical();
   semaPt->Value = 1;
@@ -163,7 +166,7 @@ void OS_Scheduler(void){
   while(NextPt == 0){
     if(next->sleep == 0){
       NextPt = next;
-      break;
+      return;
     }
     else{
       if(SYSTICK_getCount(next->id) >= next->sleep)
@@ -205,7 +208,7 @@ void OS_Kill(void){
   OS_Suspend();
 }
 int OS_AddSW1Task(void(*pushTask)(void), void(*pullTask)(void), unsigned long priority){
-  Switch_Init(&pushTask, &pullTask);
+  Switch_Init(pushTask, pullTask);
 }
 int OS_AddThread(void(*task)(void),  uint8_t priority, uint8_t id){
   uint8_t i;
@@ -262,13 +265,14 @@ unsigned long OS_Time(void){
 }
 
 unsigned long OS_TimeDifference(unsigned long start, unsigned long stop){
-  return start-stop;
+  return stop-start;
 }
 
-static void (*PERIODICTASK)(void);
-void Timer2_Init(void(*task)(void), unsigned long period){
+int Timer2Period;
+
+void Timer2_Init(unsigned long period){
+  Timer2Period = period;
   SYSCTL_RCGCTIMER_R |= 0x04;   // 0) activate timer2
-  PERIODICTASK = task;          // user function
   TIMER2_CTL_R = 0x00000000;    // 1) disable timer2A during setup
   TIMER2_CFG_R = 0x00000000;    // 2) configure for 32-bit mode
   TIMER2_TAMR_R = 0x00000002;   // 3) configure for periodic mode, default down-count settings
@@ -284,17 +288,34 @@ void Timer2_Init(void(*task)(void), unsigned long period){
 }
 
 void Timer2A_Handler(void){
+  int i; 
   TIMER2_ICR_R = TIMER_ICR_TATOCINT;// acknowledge TIMER2A timeout
-  (*PERIODICTASK)();                // execute user task
+  for(i = 0; i < periodicIndex; i++){
+    periodicTimes[i] += Timer2Period;
+   
+    if(periodicTimes[i] >= periods[i]){
+      PERIODICTASKS[i]();
+      periodicTimes[i] = 0;
+    }
+  }
 }
 
 int OS_AddPeriodicThread(void(*task)(void), unsigned long period, unsigned long priority){
-   Timer2_Init(task, period);
+  if(periodicIndex < 5){
+    PERIODICTASKS[periodicIndex] = task;
+    periods[periodicIndex] = period;
+    periodicTimes[periodicIndex] = 0;
+    periodicIndex++;  
+    return 1;
+  }
+  return 0;
 }
 
 void OS_Init(void){
   uint8_t i;
   RunPt = 0;
+  periodicIndex = 0;
+  Timer2_Init(10000); //run the periodic functions ever 0.000125 seconds - 8 KHz
 	for(i = TCB_COUNT; i > 0; i--){
     tcbs[i-1].PSR = 0x01000000;
     tcbs[i-1].id = 0;

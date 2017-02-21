@@ -96,7 +96,7 @@ uint32_t SYSTICK_getCount(uint8_t id){
 }
 void SysTick_Handler(void){
   int i = 0;
-  PB5 ^= 0x20;
+  //PB5 ^= 0x20;
   for(i = 0; i < 10; i++){SYSTICK_count[i]++;}
   
   OS_Suspend(); // Trigger PendSV

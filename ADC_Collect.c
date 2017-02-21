@@ -206,16 +206,16 @@ void ADC_Collect(uint8_t channelNum, uint32_t FS, void(*task)(unsigned long)){
   }
   DisableInterrupts();
   SYSCTL_RCGCADC_R |= 0x01;     // activate ADC0 
-  SYSCTL_RCGCTIMER_R |= 0x01;   // activate timer0 
+  SYSCTL_RCGCTIMER_R |= 0x20;   // activate timer0 
   delay = SYSCTL_RCGCTIMER_R;   // allow time to finish activating
-  TIMER0_CTL_R = 0x00000000;    // disable timer0A during setup
-  TIMER0_CTL_R |= 0x00000020;   // enable timer0A trigger to ADC
-  TIMER0_CFG_R = 0;             // configure for 32-bit timer mode
-  TIMER0_TAMR_R = 0x00000002;   // configure for periodic mode, default down-count settings
-  TIMER0_TAPR_R = 0;            // prescale value for trigger
-  TIMER0_TAILR_R = period-1;    // start value for trigger
-  TIMER0_IMR_R = 0x00000000;    // disable all interrupts
-  TIMER0_CTL_R |= 0x00000001;   // enable timer0A 32-b, periodic, no interrupts
+  TIMER5_CTL_R = 0x00000000;    // disable timer0A during setup
+  TIMER5_CTL_R |= 0x00000020;   // enable timer0A trigger to ADC
+  TIMER5_CFG_R = 0;             // configure for 32-bit timer mode
+  TIMER5_TAMR_R = 0x00000002;   // configure for periodic mode, default down-count settings
+  TIMER5_TAPR_R = 0;            // prescale value for trigger
+  TIMER5_TAILR_R = period-1;    // start value for trigger
+  TIMER5_IMR_R = 0x00000000;    // disable all interrupts
+  TIMER5_CTL_R |= 0x00000001;   // enable timer0A 32-b, periodic, no interrupts
   ADC0_PC_R = 0x01;         // configure for 125K samples/sec
   ADC0_SSPRI_R = 0x3210;    // sequencer 0 is highest, sequencer 3 is lowest
   ADC0_ACTSS_R &= ~0x08;    // disable sample sequencer 3
@@ -233,7 +233,7 @@ static volatile uint16_t ADCValue;
 uint16_t ADC_Get(){
   return ADCValue;
 }
-void static ADC0Seq3_Handler(void){
+void ADC0Seq3_Handler(void){
   ADC0_ISC_R = 0x08;          // acknowledge ADC sequence 3 completion
   TASK(ADC0_SSFIFO3_R);  // 12-bit result
   ADCValue = ADC0_SSFIFO3_R;
