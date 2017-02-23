@@ -21,11 +21,7 @@ static char string[100];
 void INTERPRETER_Run(){
   while(1){
 #if DEBUG
-  PB2 ^= 0x04;
-  PB3 = 0x08; // 0x08;
-  PB4 = 0x10; // 0x10;
-  PB5 = 0x20; // 0x20;
-  PB6 = 0x00; // 0x40;
+    Debug_Task(7);
 #endif //DEBUG
 
     UART_OutString(">");
