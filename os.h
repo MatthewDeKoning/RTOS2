@@ -10,6 +10,118 @@
 #ifndef __OS_H
 #define __OS_H  1
 
+#define DEBUG_ON 1
+#define DEBUG_OFF 0
+#define DEBUG DEBUG_ON
+#if DEBUG
+#define PB2  (*((volatile unsigned long *)0x40005010))
+#define PB3  (*((volatile unsigned long *)0x40005020))
+#define PB4  (*((volatile unsigned long *)0x40005040))
+#define PB5  (*((volatile unsigned long *)0x40005080))
+#define PB6  (*((volatile unsigned long *)0x40005100))
+#define Debug_Task(TASKNUM){ \
+  switch(TASKNUM){           \
+    case 0:                  \
+      PB3 = 0x00;            \
+      PB4 = 0x00;            \
+      PB5 = 0x00;            \
+      PB6 = 0x00;            \
+      break;                 \
+    case 1:                  \
+      PB3 = 0x08;            \
+      PB4 = 0x00;            \
+      PB5 = 0x00;            \
+      PB6 = 0x00;            \
+      break;                 \
+    case 2:                  \
+      PB3 = 0x00;            \
+      PB4 = 0x10;            \
+      PB5 = 0x00;            \
+      PB6 = 0x00;            \
+      break;                 \
+    case 3:                  \
+      PB3 = 0x08;            \
+      PB4 = 0x10;            \
+      PB5 = 0x00;            \
+      PB6 = 0x00;            \
+      break;                 \
+    case 4:                  \
+      PB3 = 0x00;            \
+      PB4 = 0x00;            \
+      PB5 = 0x20;            \
+      PB6 = 0x00;            \
+      break;                 \
+    case 5:                  \
+      PB3 = 0x08;            \
+      PB4 = 0x00;            \
+      PB5 = 0x20;            \
+      PB6 = 0x00;            \
+      break;                 \
+    case 6:                  \
+      PB3 = 0x00;            \
+      PB4 = 0x10;            \
+      PB5 = 0x20;            \
+      PB6 = 0x00;            \
+      break;                 \
+    case 7:                  \
+      PB3 = 0x08;            \
+      PB4 = 0x10;            \
+      PB5 = 0x20;            \
+      PB6 = 0x00;            \
+      break;                 \
+    case 8:                  \
+      PB3 = 0x00;            \
+      PB4 = 0x00;            \
+      PB5 = 0x00;            \
+      PB6 = 0x40;            \
+      break;                 \
+    case 9:                  \
+      PB3 = 0x08;            \
+      PB4 = 0x00;            \
+      PB5 = 0x00;            \
+      PB6 = 0x40;            \
+      break;                 \
+    case 10:                 \
+      PB3 = 0x00;            \
+      PB4 = 0x10;            \
+      PB5 = 0x00;            \
+      PB6 = 0x40;            \
+      break;                 \
+    case 11:                 \
+      PB3 = 0x08;            \
+      PB4 = 0x10;            \
+      PB5 = 0x00;            \
+      PB6 = 0x40;            \
+      break;                 \
+    case 12:                 \
+      PB3 = 0x00;            \
+      PB4 = 0x00;            \
+      PB5 = 0x20;            \
+      PB6 = 0x40;            \
+      break;                 \
+    case 13:                 \
+      PB3 = 0x08;            \
+      PB4 = 0x00;            \
+      PB5 = 0x20;            \
+      PB6 = 0x40;            \
+      break;                 \
+    case 14:                 \
+      PB3 = 0x00;            \
+      PB4 = 0x10;            \
+      PB5 = 0x20;            \
+      PB6 = 0x40;            \
+      break;                 \
+    case 15:                 \
+      PB3 = 0x08;            \
+      PB4 = 0x10;            \
+      PB5 = 0x20;            \
+      PB6 = 0x40;            \
+      break;                 \
+  }                          \
+  PB2 ^= 0x04;               \
+}
+#endif //DEBUG
+
 // edit these depending on your clock        
 #define TIME_1MS    80000          
 #define TIME_2MS    (2*TIME_1MS)  

@@ -20,6 +20,14 @@ static char string[100];
 //The function to run as interpreter thread
 void INTERPRETER_Run(){
   while(1){
+#if DEBUG
+  PB2 ^= 0x04;
+  PB3 = 0x08; // 0x08;
+  PB4 = 0x10; // 0x10;
+  PB5 = 0x20; // 0x20;
+  PB6 = 0x00; // 0x40;
+#endif //DEBUG
+
     UART_OutString(">");
     UART_InString(string, 99);
     INTERPRETER_parseMessage(string);

@@ -44,6 +44,12 @@ unsigned long NumCreated;
 #include "UART.h"
 #include "interpreter.h"
 
+void DisableInterrupts(void);
+void EnableInterrupts(void);
+long StartCritical(void);
+void EndCritical(long sr);
+void WaitForInterrupt(void);
+
 //*********Prototype for FFT in cr4_fft_64_stm32.s, STMicroelectronics
 void cr4_fft_64_stm32(void *pssOUT, void *pssIN, unsigned short Nbin);
 //*********Prototype for PID in PID_stm32.s, STMicroelectronics
@@ -69,10 +75,9 @@ long MaxJitter;             // largest time jitter between interrupts in usec
 unsigned long const JitterSize=JITTERSIZE;
 unsigned long JitterHistogram[JITTERSIZE]={0,};
 
-#define PB2  (*((volatile unsigned long *)0x40005010))
-#define PB3  (*((volatile unsigned long *)0x40005020))
-#define PB4  (*((volatile unsigned long *)0x40005040))
-#define PB5  (*((volatile unsigned long *)0x40005080))
+
+
+
 
 void PortB_Init(void){ unsigned long volatile delay;
   SYSCTL_RCGC2_R |= 0x02;       // activate port B
@@ -95,11 +100,17 @@ long Filter(long data){
 static long x[6]; // this MACQ needs twice
 static long y[6];
 static unsigned long n=3;   // 3, 4, or 5
+#if DEBUG
+  Debug_Task(1);
+#endif //DEBUG
   n++;
   if(n==6) n=3;     
   x[n] = x[n-3] = data;  // two copies of new data
   y[n] = (256*(x[n]+x[n-2])-503*x[n-1]+498*y[n-1]-251*y[n-2]+128)/256;
   y[n-3] = y[n];         // two copies of filter outputs too
+#if DEBUG
+  Debug_Task(1);
+#endif //DEBUG
   return y[n];
 } 
 //******** DAS *************** 
@@ -115,10 +126,14 @@ unsigned long input;
 unsigned static long LastTime;  // time at previous ADC sample
 unsigned long thisTime;         // time at current ADC sample
 long jitter;                    // time between measured and expected, in us
+#if DEBUG
+  Debug_Task(0);
+#endif //DEBUG
   if(NumSamples < RUNLENGTH){   // finite time run
-    PB2 ^= 0x04;
+#if DEBUG
+  Debug_Task(0);
+#endif //DEBUG
     input = ADC_Get();           // channel set when calling ADC_Init
-    PB2 ^= 0x04;
     thisTime = OS_Time();       // current time, 12.5 ns
     DASoutput = Filter(input);
     FilterWork++;        // calculation finished
@@ -140,6 +155,9 @@ long jitter;                    // time between measured and expected, in us
     LastTime = thisTime;
     PB2 ^= 0x04;
   }
+#if DEBUG
+  Debug_Task(0);
+#endif //DEBUG
   EnableInterrupts();
 }
 //--------------end of Task 1-----------------------------
@@ -154,14 +172,15 @@ const char* four = "Jitter 0.1us= ";
 // foreground treads run for 2 sec and die
 // ***********ButtonWork*************
 void ButtonWork(void){
+#if DEBUG
+  Debug_Task(2);
+#endif //DEBUG
   uint8_t i;
   unsigned long myId = OS_Id(); 
-  PB3 ^= 0x08;
   for(i = 0; i < 13; i++){task2string[i] = one[i];}
   itoa(NumCreated, task2string, 10, 13);
   OS_MailBox_Send(1, 0, task2string);
   
-  PB3 ^= 0x08;
   OS_Sleep(50);     // set this to sleep for 50msec
   for(i = 0; i < 20; i++){task2string[i] = '\0';}
   for(i = 0; i < 10; i++){task2string[i] = two[i];}
@@ -175,7 +194,9 @@ void ButtonWork(void){
   for(i = 0; i < 14; i++){task2string[i] = four[i];}
   itoa(MaxJitter, task2string, 10, 14);
   OS_MailBox_Send(1, 3, task2string); 
-  PB3 ^= 0x08;
+#if DEBUG
+  Debug_Task(2);
+#endif //DEBUG
   OS_Kill();  // done, OS does not return from a Kill
 } 
 
@@ -185,12 +206,21 @@ void ButtonWork(void){
 // Adds another foreground task
 // background threads execute once and return
 void SW1Release(void){
+#if DEBUG
+  Debug_Task(3);
+#endif //DEBUG
   if(OS_MsTime() > 20){ // debounce
     if(OS_AddThread(&ButtonWork,100,4)){
+#if DEBUG
+  Debug_Task(3);
+#endif //DEBUG
       NumCreated++; 
     }
     OS_ClearMsTime();  // at least 20ms between touches
   }
+#if DEBUG
+  Debug_Task(3);
+#endif //DEBUG
 }
 void SW1Push(void){
   OS_ClearMsTime();
@@ -255,17 +285,24 @@ uint8_t i;
   ADC_Collect(5, FS, &Producer); // start ADC sampling, channel 5, PD2, 400 Hz
   //NumCreated += OS_AddThread(&Display,128,0); 
   while(NumSamples < RUNLENGTH) { 
-    PB4 = 0x10;
+#if DEBUG
+  Debug_Task(4);
+#endif //DEBUG
     for(t = 0; t < 64; t++){   // collect 64 ADC samples
       data = OS_Fifo_Get();    // get from producer
       x[t] = data;             // real part is 0 to 4095, imaginary part is 0
+#if DEBUG
+  Debug_Task(4);
+#endif //DEBUG
     }
-    PB4 = 0x00;
     cr4_fft_64_stm32(y,x,64);  // complex FFT of last 64 ADC values
     DCcomponent = y[0]&0xFFFF; // Real part at frequency 0, imaginary part should be zero
     DCcomponent = 3000*DCcomponent/4095;
     itoa(DCcomponent, message, 10, 8);
     OS_MailBox_Send(2, 0, message); // called every 2.5ms*64 = 160ms
+#if DEBUG
+  Debug_Task(4);
+#endif //DEBUG
   }
   OS_Kill();  // done
 }
@@ -278,16 +315,24 @@ void Display(void){
   Mail data;
   //ST7735_ds_Message(3,3,"Run length = ",(RUNLENGTH)/FS);   // top half used for Display
   //while(NumSamples < RUNLENGTH) { 
+#if DEBUG
+  Debug_Task(5);
+#endif //DEBUG
   while(1){
     if(OS_MailBox_Count()){
+#if DEBUG
+  Debug_Task(5);
+#endif //DEBUG
       data = OS_MailBox_Recv();
       ST7735_ds_SetCursor((data).device, 0, (data).line);
       ST7735_ds_OutString((data).device, "                    ");
       ST7735_ds_SetCursor((data).device, 0, (data).line);
       ST7735_ds_OutString((data).device, (data).message);
-      PB5 = 0x20;
     }
     else{
+#if DEBUG
+  Debug_Task(5);
+#endif //DEBUG
       OS_Suspend();
     }
   } 
@@ -318,11 +363,22 @@ unsigned long myId = OS_Id();
   Coeff[2] = 64;    // 0.25 = 64/256 derivative coefficient*
   while(NumSamples < RUNLENGTH) { 
     for(err = -1000; err <= 1000; err++){    // made-up data
+#if DEBUG
+  Debug_Task(6);
+#endif //DEBUG
       Actuator = PID_stm32(err,Coeff)/256;
     }
     PIDWork++;        // calculation finished
+#if DEBUG
+  Debug_Task(6);
+#endif //DEBUG
   }
-  for(;;){ }          // done
+  for(;;){ 
+#if DEBUG
+    Debug_Task(6);
+#endif //DEBUG
+    OS_Suspend();
+  }          // done
 }
 //--------------end of Task 4-----------------------------
 /*
@@ -464,7 +520,7 @@ int main22(void){
 Sorry the main is a mess right now. Port B and LCD code are mutually exclusive.... haha
 */
 
-int main112(void){  // Testmain1 coop
+int main(void){  // Testmain1 coop
   
   PLL_Init(Bus80MHz);       // set system clock to 50 MHz
   UART_Init();              // initialize UART
@@ -609,7 +665,7 @@ void BackgroundThread5c(void){   // called when Select button pushed
 void None(){
   
 }  
-int main(void){   // Testmain3
+int main543(void){   // Testmain3
   Count4 = 0;          
   PLL_Init(Bus80MHz);
   
